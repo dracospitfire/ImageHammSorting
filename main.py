@@ -1,5 +1,5 @@
 #=====================================================#
-#               ImageHammingSorting.py                #
+#                 ImageHammSorting.py                 #
 # =       Created by Austin Flores on 8/14/22       = #
 #       All rights reservied by dracospitfire         #
 #=====================================================#
