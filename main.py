@@ -13,15 +13,28 @@ import numpy as np
 import cv2, glob
 
 ### Global Path for file with images ###
-jpgFolderDirectory = Path('x192')
+jpgFolderDirectory = Path('C:/Users/auflores/Pictures/ViDi Projects/Images/5K - 6K/TESTING')
 
 ### Main function for iteration over images in folder ###
 def main():
-    os.chdir('x192')
+    os.chdir(jpgFolderDirectory)
     files_list = glob.glob('*.jpg')
     
     print("IMAGES:", len(files_list))
     
+    duplicates = find_duplicates(files_list)
+    remove_duplicates(duplicates)
+
+    image_files = filter_images()
+    HAMM_duplicates, ds_dict = difference_score_dict_HAMM(image_files)
+    
+    HAMM_duplicates = build_image_library(ds_dict, HAMM_duplicates)
+    
+    print("Duplicate Sets: ", len(HAMM_duplicates.keys()))
+    
+    sort_image_library(HAMM_duplicates)
+    
+def find_duplicates(files_list):
     duplicates = []
     hash_keys = dict()
     for index, filename in  enumerate(files_list):
@@ -32,66 +45,15 @@ def main():
                 hash_keys[filehash] = index
             else:
                 duplicates.append((index,hash_keys[filehash]))
-    
     print("DUPLICATES:", len(duplicates))
-    
-    ### Removes all duplicate images ###
+    return duplicates
+
+### Removes all duplicate images ###
+def remove_duplicates(duplicates):
     if len(duplicates) > 0:
         for index in duplicates:
             os.remove(files_list[index[0]])
-    
-    image_files = filter_images()
-    HAMM_duplicates, ds_dict = difference_score_dict_HAMM(image_files)
-    
-    for i1, i2 in itertools.combinations(ds_dict, 2):
-        if hamming_distance(ds_dict[i1], ds_dict[i2]) < .42:
-            if i1 in HAMM_duplicates.keys():
-                k = 0
-                for image_list in HAMM_duplicates.values():
-                    if i2 in image_list:
-                        k += 1
-                if k == 0:
-                    HAMM_duplicates.get(i1).append(i2)
-            elif i2 in HAMM_duplicates.keys():
-                k = 0
-                for image_list in HAMM_duplicates.values():
-                    if i1 in image_list:
-                        k += 1
-                if k == 0:
-                    HAMM_duplicates.get(i2).append(i1)
-            elif i1 not in HAMM_duplicates.keys() and i2 not in HAMM_duplicates.keys():
-                k, K = 0, 0
-                for keys, image_list in HAMM_duplicates.items():
-                    if i1 in image_list:
-                        k += 1
-                        key1 = keys
-                    if i2 in image_list:
-                        K += 1
-                        key2 = keys
-                if k == 0 and K == 0:
-                    HAMM_duplicates.update({i1:[i1,i2]})
-                elif k > 0 and K == 0:
-                    HAMM_duplicates.get(key1).append(i2)
-                elif k == 0 and K > 0:
-                    HAMM_duplicates.get(key2).append(i1)
-    
-    print("HAMM Duplicate Sets: ", len(HAMM_duplicates.keys()))
-    
-    
-    i = 0
-    for images in HAMM_duplicates.values():
-        i += 1
-        similar = "HAMM similar " + str(i)
-        FolderDirectory = Path('')
-        NewFolderDirectory = FolderDirectory/similar
-        if not NewFolderDirectory.exists():
-            NewFolderDirectory.mkdir()
-        for image in images:
-            OldFolderDirectory = FolderDirectory/image
-            imageFolderDirectory = NewFolderDirectory/image
-            shutil.move(OldFolderDirectory, imageFolderDirectory)
-    
-    
+
 ###
 def filter_images():
     image_list = []
@@ -145,6 +107,54 @@ def intensity_diff(row_res, col_res):
 def hamming_distance(image, image2):
     score = scipy.spatial.distance.hamming(image, image2)
     return score
+
+def build_image_library(ds_dict, HAMM_duplicates):
+    for i1, i2 in itertools.combinations(ds_dict, 2):
+        if hamming_distance(ds_dict[i1], ds_dict[i2]) < .35:
+            if i1 in HAMM_duplicates.keys() and i2 not in HAMM_duplicates.keys():
+                k = 0
+                for image_list in HAMM_duplicates.values():
+                    if i2 in image_list:
+                        k += 1
+                if k == 0:
+                    HAMM_duplicates.get(i1).append(i2)
+            elif i2 in HAMM_duplicates.keys() and i1 not in HAMM_duplicates.keys():
+                k = 0
+                for image_list in HAMM_duplicates.values():
+                    if i1 in image_list:
+                        k += 1
+                if k == 0:
+                    HAMM_duplicates.get(i2).append(i1)
+            elif i1 not in HAMM_duplicates.keys() and i2 not in HAMM_duplicates.keys():
+                k, K = 0, 0
+                for keys, image_list in HAMM_duplicates.items():
+                    if i1 in image_list:
+                        k += 1
+                        key1 = keys
+                    if i2 in image_list:
+                        K += 1
+                        key2 = keys
+                if k == 0 and K == 0:
+                    HAMM_duplicates.update({i1:[i1,i2]})
+                elif k > 0 and K == 0:
+                    HAMM_duplicates.get(key1).append(i2)
+                elif k == 0 and K > 0:
+                    HAMM_duplicates.get(key2).append(i1)
+    return HAMM_duplicates
+
+def sort_image_library(HAMM_duplicates):
+    i = 0
+    for images in HAMM_duplicates.values():
+        i += 1
+        similar = "Similar Images " + str(i)
+        FolderDirectory = Path('')
+        NewFolderDirectory = FolderDirectory/similar
+        if not NewFolderDirectory.exists():
+            NewFolderDirectory.mkdir()
+        for image in images:
+            OldFolderDirectory = FolderDirectory/image
+            imageFolderDirectory = NewFolderDirectory/image
+            shutil.move(OldFolderDirectory, imageFolderDirectory)
 
 ### Statement allows you to run file either as reusable module or standalone programs ###
 if __name__ == "__main__":
