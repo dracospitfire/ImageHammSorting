@@ -4,7 +4,7 @@
 #       All rights reservied by dracospitfire         #
 #=====================================================#
 #!/usr/bin/env python3
-import hashlib, os, shutil
+import hashlib, os, shutil, time
 from hashlib import md5
 from pathlib import Path
 import itertools, scipy.spatial
@@ -22,17 +22,27 @@ def main():
     
     print("IMAGES:", len(files_list))
     
-    duplicates = find_duplicates(files_list)
-    remove_duplicates(duplicates)
-
-    image_files = filter_images()
+    #duplicates = find_duplicates(files_list)
+    
+    #remove_duplicates(duplicates, files_list)
+   
+    start = time.time()
+    #image_files = filter_images()
+    image_files = files_list
+    end = time.time()
+    print("Time Laps:",(end - start))
+    start = time.time()
     HAMM_duplicates, ds_dict = difference_score_dict_HAMM(image_files)
-    
+    end = time.time()
+    print("Difference Score Laps:",(end - start))
+    start = time.time()
     HAMM_duplicates = build_image_library(ds_dict, HAMM_duplicates)
-    
+    end = time.time()
+    print("HAMMING Time Laps:",(end - start))
+
     print("Duplicate Sets: ", len(HAMM_duplicates.keys()))
     
-    sort_image_library(HAMM_duplicates)
+    #sort_image_library(HAMM_duplicates)
     
 def find_duplicates(files_list):
     duplicates = []
@@ -49,13 +59,14 @@ def find_duplicates(files_list):
     return duplicates
 
 ### Removes all duplicate images ###
-def remove_duplicates(duplicates):
+def remove_duplicates(duplicates, files_list):
     if len(duplicates) > 0:
         for index in duplicates:
             os.remove(files_list[index[0]])
 
 ###
 def filter_images():
+    print("Filtering Images")
     image_list = []
     for image in glob.glob('*.jpg'):
         try:
@@ -67,36 +78,57 @@ def filter_images():
 
 #Hamming
 def difference_score_dict_HAMM(image_list):
+    print("Filtering Images")
     ds_dict = {}
     HAMM_duplicates = {}
+    i = 0
     for image in image_list:
+        i += 1
+        print(i)
+        start = time.time()
         ds = difference_score(image)
         if image not in ds_dict:
             ds_dict[image] = ds
         else:
             HAMM_duplicates.append((image, ds_dict[image]))
+        end = time.time()
+        print("Total Time Laps:",(end - start))
     return  HAMM_duplicates, ds_dict
 
 
 def difference_score(image, height = 30, width = 30):
+    print("Determining Difference Score")
+    start = time.time()
     gray = img_gray(image)
+    end = time.time()
+    print("Gray Time:",(end - start))
+    start = time.time()
     row_res, col_res = resize(gray, height, width)
+    end = time.time()
+    print("Resizing Time:",(end - start))
+    start = time.time()
     difference = intensity_diff(row_res, col_res)
+    end = time.time()
+    print("Intesity Time:",(end - start))
     return difference
 
 ###First turn the image into a gray scale image
 def img_gray(image):
+    print("Gray Image")
     image = cv2.imread(image)
-    return np.average(image, weights=[0.299, 0.587, 0.114], axis=2)
+    return image
+    #np.average(image, weights=[0.299, 0.587, 0.114], axis=2)
 
 ###resize image and flatten
 def resize(image, height=30, width=30):
+    print("Resizing Image")
     row_res = cv2.resize(image,(height, width), interpolation = cv2.INTER_AREA).flatten()
     col_res = cv2.resize(image,(height, width), interpolation = cv2.INTER_AREA).flatten('F')
     return row_res, col_res
 
 ###gradient direction based on intensity
 def intensity_diff(row_res, col_res):
+    print("Setting Intenisty")
     difference_row = np.diff(row_res)
     difference_col = np.diff(col_res)
     difference_row = difference_row > 0
@@ -140,6 +172,23 @@ def build_image_library(ds_dict, HAMM_duplicates):
                     HAMM_duplicates.get(key1).append(i2)
                 elif k == 0 and K > 0:
                     HAMM_duplicates.get(key2).append(i1)
+    return HAMM_duplicates
+
+def build_image_library2(ds_dict, HAMM_duplicates):
+    i = 0
+    for image in ds_dict:
+        i += 1
+        print(i)
+        if len(HAMM_duplicates) == 0:
+            HAMM_duplicates.update({image:[image]})
+        else:
+            k = 0
+            for images in HAMM_duplicates.keys():
+                if hamming_distance(ds_dict[image], ds_dict[images]) < .45:
+                    HAMM_duplicates.get(images).append(image)
+                    k += 1
+            if k == 0:
+                HAMM_duplicates.update({image:[image]})
     return HAMM_duplicates
 
 def sort_image_library(HAMM_duplicates):
