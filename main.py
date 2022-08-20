@@ -13,7 +13,7 @@ import numpy as np
 import cv2, glob
 
 ### Global Path for file with images ###
-jpgFolderDirectory = Path('C:/Users/auflores/Pictures/ViDi Projects/Images/5K - 6K/TESTING')
+jpgFolderDirectory = Path('FOLDER_DIRECTORY_WITH_ALL_YOUR_IMAGES')
 
 ### Main function for iteration over images in folder ###
 def main():
