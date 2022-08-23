@@ -15,39 +15,51 @@ import cv2, glob
 ### Global Path for file with images ###
 jpgFolderDirectory = Path('FOLDER_DIRECTORY_WITH_ALL_YOUR_IMAGES')
 
-### Main function for iteration over images in folder ###
+### Main function for scoring and sorting images in directory ###
 def main():
+    ### Sets working directory ###
     os.chdir(jpgFolderDirectory)
-    files_list = glob.glob('*.jpg')
+
+    ### Write only images into list ###
+    start = time.time()
+    image_list = glob.glob('*.jpg')
+    print("TOTAL IMAGES:", len(image_list))
+    end = time.time()
+    print("Building Image File Time Lap:",(end - start))
     
-    print("IMAGES:", len(files_list))
+    ### This is optional if you don't expect to have duplicastes ###
+    #start = time.time()
+    #duplicates = find_duplicates(image_list)
+    duplicates = []
+    #end = time.time()
+    #print("Finding Duplicates Time Lap:",(end - start))
     
-    #duplicates = find_duplicates(files_list)
-    
-    #remove_duplicates(duplicates, files_list)
+    start = time.time()
+    remove_duplicates(duplicates, image_list)
+    end = time.time()
+    print("Removing Duplicates Time Lap:",(end - start))
    
     start = time.time()
-    #image_files = filter_images()
-    image_files = files_list
+    HAMM_duplicates, ds_dict = difference_score_dict_HAMM(image_list)
     end = time.time()
-    print("Time Laps:",(end - start))
-    start = time.time()
-    HAMM_duplicates, ds_dict = difference_score_dict_HAMM(image_files)
-    end = time.time()
-    print("Difference Score Laps:",(end - start))
+    print("\nTotal Scoring Lap:",(end - start))
+   
     start = time.time()
     HAMM_duplicates = build_image_library(ds_dict, HAMM_duplicates)
     end = time.time()
-    print("HAMMING Time Laps:",(end - start))
-
-    print("Duplicate Sets: ", len(HAMM_duplicates.keys()))
+    print("Dictionary Build Time Lap:",(end - start))
     
-    #sort_image_library(HAMM_duplicates)
+    start = time.time()
+    sort_image_library(HAMM_duplicates)
+    end = time.time()
+    print("Sorting Time Laps:",(end - start))
     
-def find_duplicates(files_list):
+### Build list of duplicate images###
+def find_duplicates(image_list):
+    print("\nLooking for Duplicates")
     duplicates = []
     hash_keys = dict()
-    for index, filename in  enumerate(files_list):
+    for index, filename in  enumerate(image_list):
         if os.path.isfile(filename):
             with open(filename, 'rb') as f:
                 filehash = hashlib.md5(f.read()).hexdigest()
@@ -55,36 +67,25 @@ def find_duplicates(files_list):
                 hash_keys[filehash] = index
             else:
                 duplicates.append((index,hash_keys[filehash]))
-    print("DUPLICATES:", len(duplicates))
+    print("DUPLICATE Images:", len(duplicates))
     return duplicates
 
-### Removes all duplicate images ###
-def remove_duplicates(duplicates, files_list):
+### Removes any duplicate images ###
+def remove_duplicates(duplicates, image_list):
+    print("\nRemoving Duplicates Found")
     if len(duplicates) > 0:
         for index in duplicates:
-            os.remove(files_list[index[0]])
+            os.remove(image_list[index[0]])
 
-###
-def filter_images():
-    print("Filtering Images")
-    image_list = []
-    for image in glob.glob('*.jpg'):
-        try:
-            assert cv2.imread(image).shape[2] == 3
-            image_list.append(image)
-        except  AssertionError as e:
-            print(e)
-    return image_list
-
-#Hamming
+### Hamming process starts here ###
 def difference_score_dict_HAMM(image_list):
-    print("Filtering Images")
+    print("\nBuilding Hamming Score Library")
     ds_dict = {}
     HAMM_duplicates = {}
     i = 0
     for image in image_list:
         i += 1
-        print(i)
+        print("\nIMAGE:", i)
         start = time.time()
         ds = difference_score(image)
         if image not in ds_dict:
@@ -92,16 +93,15 @@ def difference_score_dict_HAMM(image_list):
         else:
             HAMM_duplicates.append((image, ds_dict[image]))
         end = time.time()
-        print("Total Time Laps:",(end - start))
+        print("\n", "Image Processing Time:",(end - start))
     return  HAMM_duplicates, ds_dict
 
-
+### Build difference score for each image ###
 def difference_score(image, height = 30, width = 30):
-    print("Determining Difference Score")
     start = time.time()
     gray = img_gray(image)
     end = time.time()
-    print("Gray Time:",(end - start))
+    print("Grayscale Time:",(end - start))
     start = time.time()
     row_res, col_res = resize(gray, height, width)
     end = time.time()
@@ -109,24 +109,23 @@ def difference_score(image, height = 30, width = 30):
     start = time.time()
     difference = intensity_diff(row_res, col_res)
     end = time.time()
-    print("Intesity Time:",(end - start))
+    print("Intesity Scale Time:",(end - start))
     return difference
 
-###First turn the image into a gray scale image
+### Open image as gray scale image ###
 def img_gray(image):
-    print("Gray Image")
-    image = cv2.imread(image)
+    print("Convert to Gray Scale")
+    image = cv2.imread(image, 0)
     return image
-    #np.average(image, weights=[0.299, 0.587, 0.114], axis=2)
 
-###resize image and flatten
-def resize(image, height=30, width=30):
+### Resize image and flatten into an array ###
+def resize(image, height=102, width=153):
     print("Resizing Image")
     row_res = cv2.resize(image,(height, width), interpolation = cv2.INTER_AREA).flatten()
     col_res = cv2.resize(image,(height, width), interpolation = cv2.INTER_AREA).flatten('F')
     return row_res, col_res
 
-###gradient direction based on intensity
+### Set gradient direction based on intensity ###
 def intensity_diff(row_res, col_res):
     print("Setting Intenisty")
     difference_row = np.diff(row_res)
@@ -135,14 +134,16 @@ def intensity_diff(row_res, col_res):
     difference_col = difference_col > 0
     return np.vstack((difference_row, difference_col)).flatten()
 
-#Now Let's try Hamming distance
+### Determine Hamming distance score ###
 def hamming_distance(image, image2):
     score = scipy.spatial.distance.hamming(image, image2)
     return score
 
+### Build dictionary of similar images ###
 def build_image_library(ds_dict, HAMM_duplicates):
+    print("\nComparing Images form Library")
     for i1, i2 in itertools.combinations(ds_dict, 2):
-        if hamming_distance(ds_dict[i1], ds_dict[i2]) < .35:
+        if hamming_distance(ds_dict[i1], ds_dict[i2]) < .15:
             if i1 in HAMM_duplicates.keys() and i2 not in HAMM_duplicates.keys():
                 k = 0
                 for image_list in HAMM_duplicates.values():
@@ -172,30 +173,16 @@ def build_image_library(ds_dict, HAMM_duplicates):
                     HAMM_duplicates.get(key1).append(i2)
                 elif k == 0 and K > 0:
                     HAMM_duplicates.get(key2).append(i1)
+    print("Similar Sets: ", len(HAMM_duplicates.keys()))
     return HAMM_duplicates
 
-def build_image_library2(ds_dict, HAMM_duplicates):
-    i = 0
-    for image in ds_dict:
-        i += 1
-        print(i)
-        if len(HAMM_duplicates) == 0:
-            HAMM_duplicates.update({image:[image]})
-        else:
-            k = 0
-            for images in HAMM_duplicates.keys():
-                if hamming_distance(ds_dict[image], ds_dict[images]) < .45:
-                    HAMM_duplicates.get(images).append(image)
-                    k += 1
-            if k == 0:
-                HAMM_duplicates.update({image:[image]})
-    return HAMM_duplicates
-
+### Sort dictonary of similar images ###
 def sort_image_library(HAMM_duplicates):
+    print("\nSorting Similar Sets")
     i = 0
     for images in HAMM_duplicates.values():
         i += 1
-        similar = "Similar Images " + str(i)
+        similar = "Similar Set " + str(i)
         FolderDirectory = Path('')
         NewFolderDirectory = FolderDirectory/similar
         if not NewFolderDirectory.exists():
@@ -205,6 +192,9 @@ def sort_image_library(HAMM_duplicates):
             imageFolderDirectory = NewFolderDirectory/image
             shutil.move(OldFolderDirectory, imageFolderDirectory)
 
-### Statement allows you to run file either as reusable module or standalone programs ###
+### Statement allows you to run file either as reusable module or standalone program ###
 if __name__ == "__main__":
+    start = time.time()
     main()
+    end = time.time()
+    print("\n", "Total Script Time:",(end - start))
